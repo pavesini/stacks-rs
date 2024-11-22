@@ -1,4 +1,7 @@
-pub fn add(left: u64, right: u64) -> u64 {
+pub mod network;
+pub mod transactions;
+
+fn add(left: u64, right: u64) -> u64 {
     left + right
 }
 
