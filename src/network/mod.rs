@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum NetworkKind {
     Mainnet,
     Testnet,
@@ -15,6 +15,7 @@ impl NetworkKind {
     }
 }
 
+#[derive(Clone)]
 pub struct Network {
     pub kind: NetworkKind,
     pub url: String,

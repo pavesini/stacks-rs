@@ -12,7 +12,7 @@ enum Payload {
 }
 
 pub trait TransactionSerialization {
-    fn serialize(&self) -> [u8];
+    fn serialize(&self) -> Vec<u8>;
 }
 
 pub struct StacksTransaction {
@@ -24,7 +24,7 @@ pub struct StacksTransaction {
 }
 
 impl TransactionSerialization for StacksTransaction {
-    fn serialize(&self) -> [u8] {}
+    fn serialize(&self) -> Vec<u8> { vec![] }
 }
 
 pub fn build_token_transfer_transaction(
@@ -42,8 +42,8 @@ pub fn build_token_transfer_transaction(
             memo: memo,
             recipient: recipient,
         }),
-        network: network,
+        network: network.clone(),
         post_condition_mode: PostConditionMode::Deny,
-        version: TransactionVersion::from_network(network.kind),
+        version: TransactionVersion::from_network(&network.kind),
     }
 }

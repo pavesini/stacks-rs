@@ -13,7 +13,7 @@ impl TransactionVersion {
         }
     }
 
-    pub fn from_network(network: NetworkKind) -> Self {
+    pub fn from_network(network: &NetworkKind) -> Self {
         return match network {
             NetworkKind::Mainnet => Self::Mainnet,
             NetworkKind::Testnet => Self::Testnet,

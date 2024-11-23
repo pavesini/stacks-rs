@@ -19,3 +19,4 @@ target/
 
 devbox.json
 devbox.lock
+.vscode
