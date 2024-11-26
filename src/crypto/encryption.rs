@@ -25,7 +25,7 @@ where
 /// 
 /// Usage:
 /// ```
-/// let ciphertext = cbc_decrypt::<Aes128CbcEnc>(&enc_key, &iv, &ciphertext)
+/// let plaintext = cbc_decrypt::<Aes128CbcEnc>(&enc_key, &iv, &ciphertext)
 /// ```
 pub fn cbc_decrypt<T>(enc_key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, UnpadError>
 where 
