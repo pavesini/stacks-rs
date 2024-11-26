@@ -1,7 +1,8 @@
 use std::{fmt, str::FromStr, vec};
 use aes::cipher::block_padding::UnpadError;
 use bip39::Mnemonic;
-use crate::crypto::{encryption, hash, hmac::{self, HmacError}, utils};
+use sha2::{Sha256, Sha512};
+use crate::crypto::{encryption::{self, Aes128CbcDec, Aes128CbcEnc}, hash::{self, U32}, hmac::{self, HmacError, HmacSha256}, utils};
 
 const ENTROPY_128_BITS: usize = 16; 
 const ENTROPY_256_BITS: usize = 32; 
@@ -75,14 +76,14 @@ impl Wallet {
     /// Encryption with AES-128-CBC with SHA256 HMAC
     fn encrypt_mnemonic(mnemonic: &Mnemonic, password: &[u8], salt: Option<[u8; 16]>) -> Result<Vec<u8>, WalletError> {
         let (enc_key, mac_key, iv, salt) = 
-            hmac::HmacSha512::pbkdf2_hmac(password, salt, 100_000);
+            hmac::get_pbkdf2_hmac_keys::<Sha512>(password, salt, 100_000);
 
         // encrypt the mnenomic entropy
-        let ciphertext = encryption::aes_128_cbc_encrypt(&enc_key, &iv, &mnemonic.to_entropy());
+        let ciphertext = encryption::cbc_encrypt::<Aes128CbcEnc>(&enc_key, &iv, &mnemonic.to_entropy());
 
         // hmac256
         let hmac_payload = [salt.clone(), ciphertext.clone()].concat();
-        let hmac_sig = hmac::HmacSha256::compute_digest(&hmac_payload, &mac_key)
+        let hmac_sig = hmac::compute_hmac::<HmacSha256>(&hmac_payload, &mac_key)
         .map_err(|err| {
             WalletError::HmacError(err)
         })?;
@@ -97,20 +98,20 @@ impl Wallet {
         let hmac_payload = [salt.to_vec().clone(), ciphertext.to_owned().clone()].concat();
     
         let (enc_key, mac_key, iv, _salt) = 
-        hmac::HmacSha512::pbkdf2_hmac(password, Some(*salt), 100_000);
+        hmac::get_pbkdf2_hmac_keys::<Sha512>(password, Some(*salt), 100_000);
     
-        let decrypted_mnemonic_entropy = encryption::aes_128_cbc_decrypt(&enc_key, &iv, &ciphertext)
+        let decrypted_mnemonic_entropy = encryption::cbc_decrypt::<Aes128CbcDec>(&enc_key, &iv, &ciphertext)
         .map_err(|err| {
             WalletError::AesUnpadError(err)
         })?;
     
-        let hmac_digest = hmac::HmacSha256::compute_digest(&hmac_payload, &mac_key)
+        let hmac_digest = hmac::compute_hmac::<HmacSha256>(&hmac_payload, &mac_key)
         .map_err(|err| {
             WalletError::HmacError(err)
         })?;
-    
-        let hmac_sig_hash = hash::Sha256::hash(hash::Sha256::new(), hmac_sig);
-        let hmac_digest_hash = hash::Sha256::hash(hash::Sha256::new(), &hmac_digest);
+        
+        let hmac_sig_hash = hash::compute_hash::<Sha256, U32>(hmac_sig);
+        let hmac_digest_hash = hash::compute_hash::<Sha256, U32>(&hmac_digest);
     
         if hmac_digest_hash[..] != hmac_sig_hash[..] {
             return Err(WalletError::HmacMismatch);
