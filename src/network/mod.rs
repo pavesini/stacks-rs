@@ -27,6 +27,24 @@ impl Network {
     }
 }
 
+pub enum AddressVersion {
+    MainnetSingleSig,
+    MainnetMultiSig,
+    TestnetSingleSig,
+    TestnetMultiSig,
+}
+
+impl AddressVersion {
+    fn value(&self) -> u8 {
+        match *self {
+            AddressVersion::MainnetSingleSig => 22, // `P` — A single-sig address for mainnet (starting with `SP`)
+            AddressVersion::MainnetMultiSig => 20, // `M` — A multi-sig address for mainnet (starting with `SM`)
+            AddressVersion::TestnetSingleSig => 26, // `T` — A single-sig address for testnet (starting with `ST`)
+            AddressVersion::TestnetMultiSig => 21, // `N` — A multi-sig address for testnet (starting with `SN`)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
