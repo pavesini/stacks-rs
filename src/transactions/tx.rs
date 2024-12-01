@@ -1,13 +1,40 @@
-use crate::network::Network;
+use crate::network::NetworkKind;
 use crate::transactions::clarity::ClarityType;
 use crate::transactions::constants::*;
 use stacks_common::address::c32::c32_address;
 use stacks_common::address::c32::c32_address_decode;
+use stacks_common::address::AddressHashMode;
+use stacks_common::address::Error;
 use stacks_common::types::chainstate::StacksAddress;
 use stacks_common::util::hash::Hash160;
+use stacks_common::util::secp256k1::Secp256k1PrivateKey;
+use stacks_common::util::secp256k1::Secp256k1PublicKey;
+use std::fmt;
+
+#[derive(Debug)]
+pub enum PayloadSerializationError {
+    MemoTooLong(usize),
+    InvalidAddress(Error),
+}
+
+impl fmt::Display for PayloadSerializationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match *self {
+            PayloadSerializationError::MemoTooLong(v) => f.write_str(&format!(
+                "Memo too long! Got {}, max is {}",
+                v, MEMO_MAX_LENGTH_BYTES
+            )),
+            PayloadSerializationError::InvalidAddress(_) => {
+                f.write_str(&format!("Invalid address!"))
+            }
+        }
+    }
+}
+
+impl std::error::Error for PayloadSerializationError {}
 
 pub trait Serialize {
-    fn serialize(&self) -> Vec<u8>;
+    fn serialize(&self) -> Result<Vec<u8>, PayloadSerializationError>;
     fn deserialize(serialized: Vec<u8>) -> Self;
 }
 
@@ -18,7 +45,12 @@ pub struct TokenTransferPayload {
 }
 
 impl Serialize for TokenTransferPayload {
-    fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Result<Vec<u8>, PayloadSerializationError> {
+        let memo_bytes = self.memo.as_bytes();
+        if memo_bytes.len() > MEMO_MAX_LENGTH_BYTES {
+            return Err(PayloadSerializationError::MemoTooLong(memo_bytes.len()));
+        }
+
         let mut serialization: Vec<u8> = vec![];
         serialization.extend(vec![PayloadType::TokenTransfer.value()]);
         match c32_address_decode(&self.recipient) {
@@ -31,17 +63,16 @@ impl Serialize for TokenTransferPayload {
                 serialization.extend(addr.version.to_be_bytes());
                 serialization.extend(addr.bytes.as_bytes().to_vec());
             }
-            Err(e) => println!("not ok"),
+            Err(e) => return Err(PayloadSerializationError::InvalidAddress(e)),
         }
 
         serialization.extend(self.amount.to_be_bytes());
 
-        let memo_bytes = self.memo.as_bytes();
         let padding = vec![0; MEMO_MAX_LENGTH_BYTES - memo_bytes.len()];
         serialization.extend(memo_bytes);
         serialization.extend(padding);
 
-        serialization
+        Ok(serialization)
     }
 
     fn deserialize(serialized: Vec<u8>) -> TokenTransferPayload {
@@ -72,21 +103,27 @@ enum Payload {
 
 pub struct StacksTransaction {
     version: TransactionVersion,
-    network: Network,
+    network: NetworkKind,
     payload: Payload,
     post_condition_mode: PostConditionMode,
     // post_conditions:
+    anchor_mode: AnchorMode,
 }
 
 pub fn build_token_transfer_transaction(
     recipient: String,
     amount: u64,
-    sender_key: String,
-    network: Network,
+    sender_key: Secp256k1PrivateKey, // private key
+    network: NetworkKind,
     memo: String,
     nonce: Option<u64>,
     fee: Option<u64>,
 ) -> StacksTransaction {
+    let public_key = Secp256k1PublicKey::from_private(&sender_key);
+    let addr =
+        StacksAddress::from_public_keys(1, &AddressHashMode::SerializeP2WPKH, 1, &vec![public_key])
+            .expect("Invalid params for generating address");
+
     StacksTransaction {
         payload: Payload::TokenTransfer(TokenTransferPayload {
             amount: amount,
@@ -95,7 +132,8 @@ pub fn build_token_transfer_transaction(
         }),
         network: network.clone(),
         post_condition_mode: PostConditionMode::Deny,
-        version: TransactionVersion::from_network(&network.kind),
+        version: TransactionVersion::from_network(&network),
+        anchor_mode: AnchorMode::Any,
     }
 }
 
@@ -111,7 +149,7 @@ mod tests {
             memo: String::from("test memo"),
         };
 
-        let serialized = payload.serialize();
+        let serialized = payload.serialize().unwrap();
 
         let hex: String = serialized
             .iter()
@@ -129,7 +167,7 @@ mod tests {
             memo: String::from(""),
         };
 
-        let serialized = payload.serialize();
+        let serialized = payload.serialize().unwrap();
 
         let hex: String = serialized
             .iter()
@@ -137,6 +175,36 @@ mod tests {
             .collect::<String>();
 
         assert_eq!(hex, String::from("000516df0ba3e79792be7be5e50a370289accfc8c9e032000000000000303900000000000000000000000000000000000000000000000000000000000000000000"));
+    }
+
+    #[test]
+    fn payload_token_transfer_serialize_memo_too_long() {
+        let payload = TokenTransferPayload {
+            recipient: String::from("SP3FGQ8Z7JY9BWYZ5WM53E0M9NK7WHJF0691NZ159"),
+            amount: 12345,
+            memo: String::from("Itami o kanjiro, Itami o kangaero, Itami o uketore, Itami o shire Koko yori, sekai ni itami o... SHINRA TENSEI"),
+        };
+
+        let serialized = payload.serialize();
+        assert!(matches!(
+            serialized,
+            Err(PayloadSerializationError::MemoTooLong(110))
+        ))
+    }
+
+    #[test]
+    fn payload_token_transfer_serialize_invalid_address() {
+        let payload = TokenTransferPayload {
+            recipient: String::from("invalid"),
+            amount: 12345,
+            memo: String::from(""),
+        };
+
+        let serialized = payload.serialize();
+        assert!(matches!(
+            serialized,
+            Err(PayloadSerializationError::InvalidAddress(_))
+        ))
     }
 
     #[test]
