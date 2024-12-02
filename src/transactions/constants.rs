@@ -1,5 +1,7 @@
 use crate::network::NetworkKind;
 
+pub const MEMO_MAX_LENGTH_BYTES: usize = 34;
+
 pub enum TransactionVersion {
     Mainnet,
     Testnet,
@@ -22,10 +24,16 @@ impl TransactionVersion {
     }
 }
 
-pub enum TransactionKind {
+pub enum PayloadType {
     TokenTransfer,
-    ContractDeploy,
-    ContractCall,
+}
+
+impl PayloadType {
+    pub fn value(&self) -> u8 {
+        return match *self {
+            PayloadType::TokenTransfer => 0x00,
+        };
+    }
 }
 
 pub enum PostConditionMode {
@@ -34,10 +42,40 @@ pub enum PostConditionMode {
 }
 
 impl PostConditionMode {
-    fn value(&self) -> u32 {
+    fn value(&self) -> u8 {
         match *self {
             PostConditionMode::Allow => 0x01,
             PostConditionMode::Deny => 0x02,
+        }
+    }
+}
+
+pub enum AnchorMode {
+    OnChainOnly,
+    OffChainOnly,
+    Any,
+}
+
+impl AnchorMode {
+    fn value(&self) -> u8 {
+        match *self {
+            AnchorMode::OnChainOnly => 0x01,
+            AnchorMode::OffChainOnly => 0x02,
+            AnchorMode::Any => 0x03,
+        }
+    }
+}
+
+pub enum PubKeyEncoding {
+    Compressed,
+    Uncompressed,
+}
+
+impl PubKeyEncoding {
+    fn value(&self) -> u8 {
+        match *self {
+            PubKeyEncoding::Compressed => 0x00,
+            PubKeyEncoding::Uncompressed => 0x01,
         }
     }
 }

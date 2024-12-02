@@ -7,16 +7,22 @@ pub type U64 = aes::cipher::consts::U64;
 ///
 /// Usage:
 /// ### Sha256 hash
-/// ```
-/// let digest = compute_hash::<Sha256, U32>("aaaaaa".to_bytes());
-/// -
-/// let digest = compute_hash::<Sha256, _>("aaaaaa".to_bytes());
+/// ```rust
+///
+/// use sha2::Sha256;
+/// use aes::cipher::consts::U32;
+/// use stacks_rs::crypto::hash::compute_hash;
+/// let digest = compute_hash::<Sha256, U32>("aaaaaa".as_bytes());
+/// let digest = compute_hash::<Sha256, _>("aaaaaa".as_bytes());
 /// ```
 /// ### Sha512 hash
+/// ```rust
+/// use sha2::Sha512;
+/// use aes::cipher::consts::U64;
+/// use stacks_rs::crypto::hash::compute_hash;
+/// let digest = compute_hash::<Sha512, U64>("aaaaaa".as_bytes());
+/// let digest = compute_hash::<Sha512, _>("aaaaaa".as_bytes());
 /// ```
-/// let digest = compute_hash::<Sha512, U64>("aaaaaa".to_bytes());
-/// -
-/// let digest = compute_hash::<Sha512, _>("aaaaaa".to_bytes());
 pub fn compute_hash<D, L1>(input_data: &[u8]) -> Vec<u8>
 where
     D: Digest<OutputSize = L1>,
@@ -38,14 +44,16 @@ mod tests {
     fn test_sha256() {
         let digest = compute_hash::<Sha256, U32>("aaaaaaaaaaaaaaaa".as_bytes());
         let hex_digest = hex::encode(digest);
-        assert_eq!(hex_digest, "0c0beacef8877bbf2416eb00f2b5dc96354e26dd1df5517320459b1236860f8c")
+        assert_eq!(
+            hex_digest,
+            "0c0beacef8877bbf2416eb00f2b5dc96354e26dd1df5517320459b1236860f8c"
+        )
     }
 
     #[test]
     fn test_sha512() {
         let digest = compute_hash::<Sha512, U64>("aaaaaaaaaaaaaaaa".as_bytes());
         let hex_digest = hex::encode(digest);
-        assert_eq!(hex_digest, 
-            "987d0fc93db6a73fdb16493690fb42455c7c6fbafe9a276965424b12afad3512fb808d902faa8a019d639dc5ad07c235805e08f396147cf435913cfed501f65a")
+        assert_eq!(hex_digest, "987d0fc93db6a73fdb16493690fb42455c7c6fbafe9a276965424b12afad3512fb808d902faa8a019d639dc5ad07c235805e08f396147cf435913cfed501f65a")
     }
 }
