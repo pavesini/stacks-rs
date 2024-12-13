@@ -99,7 +99,7 @@ impl Serialize for TokenTransferPayload {
     }
 }
 
-enum Payload {
+pub enum Payload {
     TokenTransfer(TokenTransferPayload),
 }
 
