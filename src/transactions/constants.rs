@@ -51,9 +51,9 @@ impl PostConditionMode {
 }
 
 pub enum AnchorMode {
-    OnChainOnly,
-    OffChainOnly,
-    Any,
+    OnChainOnly,  //  The transaction MUST be included in an anchored block
+    OffChainOnly, // The transaction MUST be included in a microblock
+    Any,          // The leader can choose where to include the transaction.
 }
 
 impl AnchorMode {

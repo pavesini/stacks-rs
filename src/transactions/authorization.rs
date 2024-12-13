@@ -1,7 +1,8 @@
-use crate::transactions::constants::PubKeyEncoding;
 use stacks_common::address::AddressHashMode;
+use stacks_common::util::secp256k1::Secp256k1PublicKey;
 use stacks_common::util::uint::Uint256;
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum SingleSigHashMode {
     P2PKH,
     P2WPKH,
@@ -17,10 +18,51 @@ impl SingleSigHashMode {
 }
 
 pub struct SingleSigSpendingCondition {
-    hash_mode: SingleSigHashMode,
-    signer: String,
-    nonce: Uint256,
-    fee: Uint256,
-    pubkey_encoding: PubKeyEncoding,
-    signature: Vec<u8>,
+    pub hash_mode: SingleSigHashMode,
+    pub nonce: Uint256,
+    pub fee: Uint256,
+    pub sender_pubkey: Secp256k1PublicKey,
+    pub signature: Option<Vec<u8>>,
+}
+
+impl SingleSigSpendingCondition {
+    pub fn new(
+        hash_mode: SingleSigHashMode,
+        nonce: Uint256,
+        fee: Uint256,
+        sender_pubkey: Secp256k1PublicKey,
+        signature: Option<Vec<u8>>,
+    ) -> SingleSigSpendingCondition {
+        SingleSigSpendingCondition {
+            hash_mode,
+            nonce,
+            fee,
+            sender_pubkey,
+            signature,
+        }
+    }
+}
+
+pub struct MultiSigSpendingCondition {}
+
+pub enum SpendingCondition {
+    SingleSig(SingleSigSpendingCondition),
+    MultiSig(MultiSigSpendingCondition),
+}
+
+pub struct StandardAuthorization {
+    pub spending_condition: SpendingCondition,
+}
+
+impl StandardAuthorization {
+    pub fn new(spending_condition: SpendingCondition) -> StandardAuthorization {
+        StandardAuthorization { spending_condition }
+    }
+}
+
+pub struct SponsoredAuthorization {}
+
+pub enum Authorization {
+    Standard(StandardAuthorization),
+    Sponsored(SponsoredAuthorization),
 }
