@@ -13,6 +13,14 @@ impl NetworkKind {
             NetworkKind::Mocknet => 0x80000000,
         }
     }
+
+    fn version_number(&self) -> u8 {
+        match *self {
+            NetworkKind::Mainnet => 0b00000000,
+            NetworkKind::Testnet => 0b10000000,
+            NetworkKind::Mocknet => 0b10000000,
+        }
+    }
 }
 
 #[derive(Clone)]

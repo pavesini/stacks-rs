@@ -1,1 +1,1 @@
-# Stacks Development Toolkit (SDK)
+# Stacks Development Kit (SDK)

@@ -1,4 +1,5 @@
 use crate::network::NetworkKind;
+use crate::transactions::authorization::*;
 use crate::transactions::clarity::ClarityType;
 use crate::transactions::constants::*;
 use stacks_common::address::c32::c32_address;
@@ -9,6 +10,7 @@ use stacks_common::types::chainstate::StacksAddress;
 use stacks_common::util::hash::Hash160;
 use stacks_common::util::secp256k1::Secp256k1PrivateKey;
 use stacks_common::util::secp256k1::Secp256k1PublicKey;
+use stacks_common::util::uint::Uint256;
 use std::fmt;
 
 #[derive(Debug)]
@@ -39,9 +41,9 @@ pub trait Serialize {
 }
 
 pub struct TokenTransferPayload {
-    recipient: String,
-    amount: u64,
-    memo: String,
+    pub recipient: String,
+    pub amount: u64,
+    pub memo: String,
 }
 
 impl Serialize for TokenTransferPayload {
@@ -91,48 +93,66 @@ impl Serialize for TokenTransferPayload {
 
         TokenTransferPayload {
             recipient: addr,
-            amount: amount,
+            amount,
             memo: String::from(memo.trim_matches(char::from(0))),
         }
     }
 }
 
-enum Payload {
+pub enum Payload {
     TokenTransfer(TokenTransferPayload),
 }
 
 pub struct StacksTransaction {
-    version: TransactionVersion,
-    network: NetworkKind,
-    payload: Payload,
-    post_condition_mode: PostConditionMode,
+    pub version: TransactionVersion,
+    pub network: NetworkKind,
+    pub payload: Payload,
+    pub post_condition_mode: PostConditionMode,
     // post_conditions:
-    anchor_mode: AnchorMode,
+    pub anchor_mode: AnchorMode,
+    pub authorization: Authorization,
 }
 
-pub fn build_token_transfer_transaction(
+pub fn build_single_sig_stx_token_transfer_transaction(
     recipient: String,
     amount: u64,
     sender_key: Secp256k1PrivateKey, // private key
     network: NetworkKind,
     memo: String,
-    nonce: Option<u64>,
-    fee: Option<u64>,
+    nonce: Option<Uint256>,
+    fee: Option<Uint256>,
 ) -> StacksTransaction {
     let public_key = Secp256k1PublicKey::from_private(&sender_key);
     let addr =
         StacksAddress::from_public_keys(1, &AddressHashMode::SerializeP2WPKH, 1, &vec![public_key])
             .expect("Invalid params for generating address");
 
+    let single_sig_spending_condition = SingleSigSpendingCondition::new(
+        SingleSigHashMode::P2WPKH,
+        match nonce {
+            Some(n) => n,
+            None => Uint256::from_u64(0),
+        },
+        match fee {
+            Some(n) => n,
+            None => Uint256::from_u64(0),
+        },
+        public_key,
+        None,
+    );
+    let authorization =
+        StandardAuthorization::new(SpendingCondition::SingleSig(single_sig_spending_condition));
+
     StacksTransaction {
         payload: Payload::TokenTransfer(TokenTransferPayload {
-            amount: amount,
-            memo: memo,
-            recipient: recipient,
+            amount,
+            memo,
+            recipient,
         }),
         network: network.clone(),
-        post_condition_mode: PostConditionMode::Deny,
+        post_condition_mode: PostConditionMode::Deny, // Token transfer cannot have post conditions
         version: TransactionVersion::from_network(&network),
+        authorization: Authorization::Standard(authorization),
         anchor_mode: AnchorMode::Any,
     }
 }
@@ -231,5 +251,51 @@ mod tests {
             String::from("SP3FGQ8Z7JY9BWYZ5WM53E0M9NK7WHJF0691NZ159")
         );
         assert_eq!(payload.memo, String::from(""));
+    }
+
+    #[test]
+    fn build_usingned_single_sig_tx() {
+        let sender_key = Secp256k1PrivateKey::from_seed(&[2; 32]);
+        let unsigned_token_transfer_tx = build_single_sig_stx_token_transfer_transaction(
+            String::from("SP3FGQ8Z7JY9BWYZ5WM53E0M9NK7WHJF0691NZ159"),
+            10000,
+            sender_key,
+            NetworkKind::Mainnet,
+            String::from("test memo"),
+            None,
+            None,
+        );
+
+        match unsigned_token_transfer_tx.authorization {
+            Authorization::Standard(a) => match a.spending_condition {
+                SpendingCondition::SingleSig(s) => {
+                    assert_eq!(s.nonce, Uint256::from_u64(0));
+                    assert_eq!(s.fee, Uint256::from_u64(0));
+                    assert_eq!(s.hash_mode, SingleSigHashMode::P2WPKH);
+                    assert_eq!(s.signature, None);
+                    assert_eq!(
+                        s.sender_pubkey,
+                        Secp256k1PublicKey::from_private(&sender_key)
+                    );
+                }
+                SpendingCondition::MultiSig(_) => {
+                    assert_eq!(true, false);
+                }
+            },
+            Authorization::Sponsored(_) => {
+                assert_eq!(true, false);
+            }
+        }
+
+        match unsigned_token_transfer_tx.payload {
+            Payload::TokenTransfer(p) => {
+                assert_eq!(p.amount, 10000);
+                assert_eq!(p.memo, String::from("test memo"));
+                assert_eq!(
+                    p.recipient,
+                    String::from("SP3FGQ8Z7JY9BWYZ5WM53E0M9NK7WHJF0691NZ159")
+                );
+            }
+        }
     }
 }
